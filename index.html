@@ -1,0 +1,479 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>タブ音声 文字起こし</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 一列のツール画面：設定 → 操作 → 文字起こし欄。録音中だけ赤を使う */
+:root {
+  --bg: #f3f4f6;
+  --panel: #ffffff;
+  --fg: #1c2230;
+  --muted: #5d6576;
+  --line: #d9dde5;
+  --accent: #2f4fb5;
+  --accent-fg: #ffffff;
+  --rec: #c8322d;
+  --ok: #1f7a4d;
+  --warn: #9a5b00;
+  --font-ui: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic UI", "Meiryo", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12151c; --panel: #1b2029; --fg: #e6e9ef; --muted: #9aa3b5; --line: #2e3542;
+    --accent: #7d97ec; --accent-fg: #0d1220; --rec: #ef6a62; --ok: #5cc48f; --warn: #e0a64a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12151c; --panel: #1b2029; --fg: #e6e9ef; --muted: #9aa3b5; --line: #2e3542;
+  --accent: #7d97ec; --accent-fg: #0d1220; --rec: #ef6a62; --ok: #5cc48f; --warn: #e0a64a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg);
+  font-family: var(--font-ui); font-size: 15px; line-height: 1.7;
+  padding-inline: 16px; padding-block: 28px 40px;
+}
+.wrap { max-width: 860px; margin: 0 auto; display: grid; gap: 18px; }
+header { display: grid; gap: 4px; }
+h1 { font-size: 1.6rem; line-height: 1.3; margin: 0; text-wrap: balance; letter-spacing: .02em; }
+.lead { margin: 0; color: var(--muted); }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+
+.settings { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label, .label { font-size: .78rem; color: var(--muted); letter-spacing: .06em; }
+select {
+  font: inherit; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; max-width: 100%;
+}
+.check { display: flex; align-items: center; gap: 6px; padding-bottom: 6px; }
+.engine { margin-left: auto; font-family: var(--font-mono); font-size: .8rem; color: var(--muted); padding-bottom: 8px; }
+
+.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+button {
+  font: inherit; cursor: pointer; border-radius: 8px; padding: 8px 16px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--fg);
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+#startBtn { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 700; padding: 10px 22px; }
+#startBtn.recording { background: var(--rec); border-color: var(--rec); color: #fff; }
+
+.status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; flex: 1; min-width: 220px; }
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; font-size: .82rem;
+  padding: 2px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted);
+}
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.rec { color: var(--rec); border-color: var(--rec); }
+.pill.rec .dot { background: var(--rec); animation: blink 1.2s infinite; }
+.pill.ready { color: var(--ok); border-color: var(--ok); }
+.pill.ready .dot { background: var(--ok); }
+.pill.busy { color: var(--warn); border-color: var(--warn); }
+.pill.busy .dot { background: var(--warn); }
+@keyframes blink { 50% { opacity: .25; } }
+@media (prefers-reduced-motion: reduce) { .pill.rec .dot { animation: none; } }
+.msg { font-size: .88rem; color: var(--muted); min-width: 0; }
+.msg.error { color: var(--rec); }
+
+.meter { width: 120px; height: 6px; background: var(--bg); border: 1px solid var(--line); border-radius: 3px; overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .1s linear; }
+.progress { height: 4px; background: var(--bg); border-radius: 2px; overflow: hidden; margin-top: 10px; }
+.progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+.transcript-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.transcript-head .tools { display: flex; gap: 8px; flex-wrap: wrap; }
+.transcript-head button { padding: 5px 12px; font-size: .88rem; }
+textarea {
+  width: 100%; min-height: 340px; resize: vertical; display: block;
+  font-family: var(--font-ui); font-size: 1rem; line-height: 1.8; color: var(--fg);
+  background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px;
+}
+textarea::placeholder { color: var(--muted); font-family: var(--font-mono); font-size: .9rem; }
+
+.howto { display: grid; gap: 6px; }
+.howto h2 { font-size: 1rem; margin: 0; }
+.howto ol { margin: 0; padding-left: 1.4em; display: grid; gap: 2px; }
+.howto p { margin: 0; color: var(--muted); font-size: .88rem; }
+kbd { font-family: var(--font-mono); font-size: .85em; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; background: var(--bg); }
+.unsupported { border-color: var(--rec); color: var(--rec); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>タブ音声 文字起こし</h1>
+    <p class="lead">ブラウザのタブで再生している動画の音声を、その場で文字にします。音声はこのPCの中だけで処理し、外部には送りません。</p>
+  </header>
+
+  <div id="unsupported" class="panel unsupported" hidden>
+    このブラウザではタブの音声を取り込めません。Google Chrome または Microsoft Edge（パソコン版）で開いてください。
+  </div>
+
+  <section class="panel settings" aria-label="設定">
+    <div class="field">
+      <label for="model">モデル</label>
+      <select id="model">
+        <option value="onnx-community/whisper-base">base（軽い・約150MB）</option>
+        <option value="onnx-community/whisper-small" selected>small（標準・約300MB）</option>
+        <option value="onnx-community/whisper-large-v3-turbo">large-v3-turbo（高精度・約1GB）</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="lang">言語</label>
+      <select id="lang">
+        <option value="japanese" selected>日本語</option>
+        <option value="english">英語</option>
+        <option value="">自動判定</option>
+      </select>
+    </div>
+    <label class="check"><input type="checkbox" id="showTime" checked> 時刻を付ける</label>
+    <span class="engine" id="engine">処理方式を確認中…</span>
+  </section>
+
+  <section class="panel" aria-label="操作">
+    <div class="controls">
+      <button id="startBtn" type="button">● タブを選んで開始</button>
+      <div class="status">
+        <span class="pill" id="statePill"><span class="dot"></span><span id="stateText">待機中</span></span>
+        <span class="meter" title="入力音量"><i id="meter"></i></span>
+        <span class="msg" id="msg">「開始」を押して、文字にしたい動画のタブを選んでください。</span>
+      </div>
+    </div>
+    <div class="progress" id="progressWrap" hidden><i id="progress"></i></div>
+  </section>
+
+  <section class="panel" aria-label="文字起こし結果">
+    <div class="transcript-head">
+      <span class="label">文字起こし結果（直接編集できます）</span>
+      <div class="tools">
+        <button type="button" id="copyBtn">コピー</button>
+        <button type="button" id="saveBtn">.txtで保存</button>
+        <button type="button" id="clearBtn">クリア</button>
+      </div>
+    </div>
+    <textarea id="out" spellcheck="false" placeholder="（表示例）
+[00:02] こんにちは。今日はパソコンの音声を文字起こしするテストを行っています。
+[00:07] うまく認識できるでしょうか。"></textarea>
+  </section>
+
+  <section class="panel howto">
+    <h2>使い方</h2>
+    <ol>
+      <li>文字にしたい動画（YouTubeなど）を、別のタブで開いておきます。</li>
+      <li>「タブを選んで開始」を押します。初回はモデルのダウンロードに数分かかります。</li>
+      <li>共有画面で <kbd>Chrome タブ</kbd>（Edgeは <kbd>タブ</kbd>）を選び、動画のタブをクリックします。</li>
+      <li><kbd>タブの音声も共有する</kbd> がオンになっていることを確かめて、<kbd>共有</kbd> を押します。</li>
+      <li>動画を再生すると、区切りごとに文字が追加されます。終わったら「停止」を押します。</li>
+    </ol>
+    <p>モデルは2回目以降ブラウザに保存されたものを使うので、すぐ始まります。パソコンの性能が低い場合は base を選んでください。</p>
+  </section>
+</div>
+
+<script>
+// ---- 文字起こし用ワーカー（Transformers.js / Whisper） ----
+const WORKER_SRC = `
+import { pipeline } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.1/dist/transformers.min.js";
+let asr = null;
+self.onmessage = async (e) => {
+  const m = e.data;
+  if (m.type === "load") {
+    try {
+      asr = await pipeline("automatic-speech-recognition", m.model, {
+        device: m.device,
+        dtype: m.device === "webgpu" ? { encoder_model: "fp32", decoder_model_merged: "q4" } : "q8",
+        progress_callback: (p) => self.postMessage({ type: "progress", p }),
+      });
+      await asr(new Float32Array(16000), { language: m.language || null, task: "transcribe" });
+      self.postMessage({ type: "ready" });
+    } catch (err) {
+      self.postMessage({ type: "error", message: String(err && err.message || err) });
+    }
+  } else if (m.type === "transcribe") {
+    try {
+      const out = await asr(m.audio, { language: m.language || null, task: "transcribe" });
+      self.postMessage({ type: "result", start: m.start, text: (out.text || "").trim() });
+    } catch (err) {
+      self.postMessage({ type: "result", start: m.start, text: "", error: String(err && err.message || err) });
+    }
+  }
+};`;
+
+// ---- 音声を16kHzの塊に分けて送るAudioWorklet ----
+const WORKLET_SRC = `
+class Tap extends AudioWorkletProcessor {
+  process(inputs) {
+    const ch = inputs[0];
+    if (ch && ch.length) {
+      const n = ch[0].length, mono = new Float32Array(n);
+      for (let c = 0; c < ch.length; c++) for (let i = 0; i < n; i++) mono[i] += ch[c][i] / ch.length;
+      this.port.postMessage(mono, [mono.buffer]);
+    }
+    return true;
+  }
+}
+registerProcessor("tap", Tap);`;
+
+const SR = 16000;
+const BLOCK = SR / 4;            // 0.25秒ごとに判定
+const SILENCE_RMS = 0.004;       // これ未満を無音とみなす
+const SILENCE_TAIL = 0.6;        // 文末とみなす無音の秒数
+const MIN_CHUNK = 2.0;           // これより短い区間は待つ
+const MAX_CHUNK = 12.0;          // これを超えたら強制的に区切る
+
+const $ = (id) => document.getElementById(id);
+const ui = {
+  start: $("startBtn"), model: $("model"), lang: $("lang"), showTime: $("showTime"),
+  engine: $("engine"), pill: $("statePill"), stateText: $("stateText"), msg: $("msg"),
+  meter: $("meter"), progWrap: $("progressWrap"), prog: $("progress"), out: $("out"),
+};
+
+let device = "wasm";
+let worker = null, loadedKey = null;
+let running = false, stream = null, ctx = null;
+let pending = 0;
+
+// 録音状態
+let resampleBuf = [], resamplePos = 0, ratio = 1;
+let block = new Float32Array(BLOCK), blockLen = 0;
+let chunk = [], chunkLen = 0, chunkStart = 0, silentSec = 0, elapsed = 0;
+
+function setState(kind, text) {
+  ui.pill.className = "pill" + (kind ? " " + kind : "");
+  ui.stateText.textContent = text;
+}
+function setMsg(text, isError) {
+  ui.msg.textContent = text;
+  ui.msg.classList.toggle("error", !!isError);
+}
+function rms(a) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * a[i]; return a.length ? Math.sqrt(s / a.length) : 0; }
+function fmt(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0"); }
+
+async function detectDevice() {
+  try {
+    if (navigator.gpu && await navigator.gpu.requestAdapter()) device = "webgpu";
+  } catch (_) {}
+  ui.engine.textContent = device === "webgpu" ? "処理方式：GPU（WebGPU）" : "処理方式：CPU";
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || /Firefox|^((?!Chrome|Edg).)*Safari/.test(navigator.userAgent)) {
+    $("unsupported").hidden = false;
+  }
+}
+
+function ensureWorker() {
+  const key = ui.model.value + "|" + device;
+  if (worker && loadedKey === key) return Promise.resolve();
+  if (worker) worker.terminate();
+  const url = URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" }));
+  worker = new Worker(url, { type: "module" });
+  loadedKey = null;
+  const files = {};
+  return new Promise((resolve, reject) => {
+    worker.onmessage = (e) => {
+      const m = e.data;
+      if (m.type === "progress") {
+        const p = m.p;
+        if (p.status === "progress" && p.total) {
+          files[p.file] = [p.loaded, p.total];
+          let l = 0, t = 0; for (const k in files) { l += files[k][0]; t += files[k][1]; }
+          ui.progWrap.hidden = false;
+          ui.prog.style.width = (100 * l / t).toFixed(1) + "%";
+          setMsg(`モデルをダウンロード中… ${(l / 1e6).toFixed(0)} / ${(t / 1e6).toFixed(0)} MB`);
+        }
+      } else if (m.type === "ready") {
+        loadedKey = key; ui.progWrap.hidden = true;
+        worker.onmessage = onWorkerMessage;
+        resolve();
+      } else if (m.type === "error") {
+        ui.progWrap.hidden = true; worker.terminate(); worker = null;
+        reject(new Error(m.message));
+      }
+    };
+    setState("busy", "準備中");
+    setMsg("モデルを読み込んでいます…");
+    worker.postMessage({ type: "load", model: ui.model.value, device, language: ui.lang.value });
+  });
+}
+
+function onWorkerMessage(e) {
+  const m = e.data;
+  if (m.type !== "result") return;
+  pending--;
+  if (m.text) {
+    const line = (ui.showTime.checked ? `[${fmt(m.start)}] ` : "") + m.text;
+    const atBottom = ui.out.scrollTop + ui.out.clientHeight >= ui.out.scrollHeight - 30;
+    ui.out.value += (ui.out.value && !ui.out.value.endsWith("\n") ? "\n" : "") + line + "\n";
+    if (atBottom) ui.out.scrollTop = ui.out.scrollHeight;
+  }
+  if (m.error) setMsg("一部の区間で文字起こしに失敗しました：" + m.error, true);
+  updateQueue();
+}
+
+function updateQueue() {
+  if (running) setMsg(pending > 1 ? `処理待ち ${pending - 1} 件（処理が追いついていません）` : "聞き取り中…");
+  else if (pending > 0) setMsg(`残り ${pending} 件を処理中…`);
+  else if (!ui.start.disabled) setMsg("停止しました。結果はコピーまたは保存できます。");
+}
+
+function sendChunk(len) {
+  const all = concatChunks();
+  const audio = all.slice(0, len);
+  const rest = all.subarray(len);   // 残りは次の区間に回す
+  chunk = rest.length ? [rest.slice()] : [];
+  const start = chunkStart;
+  chunkStart += len / SR;
+  chunkLen = rest.length;
+  silentSec = 0;
+  pending++; updateQueue();
+  worker.postMessage({ type: "transcribe", audio, start, language: ui.lang.value }, [audio.buffer]);
+}
+function concatChunks() {
+  const all = new Float32Array(chunkLen); let o = 0;
+  for (const c of chunk) { all.set(c, o); o += c.length; }
+  chunk = [all];
+  return all;
+}
+// 直近3秒で最も静かな位置（単語の途中で切れにくい位置）
+function quietestPoint() {
+  const all = concatChunks(), win = SR / 10, from = Math.max(0, all.length - SR * 3);
+  let best = all.length, bestR = Infinity;
+  for (let i = from; i + win < all.length; i += win / 2) {
+    const r = rms(all.subarray(i, i + win));
+    if (r < bestR) { bestR = r; best = i + win / 2; }
+  }
+  return best;
+}
+
+function onBlock(b) {
+  const r = rms(b);
+  ui.meter.style.width = Math.min(100, r * 600).toFixed(0) + "%";
+  const silent = r < SILENCE_RMS;
+  if (chunkLen === 0 && silent) { chunkStart += b.length / SR; return; }   // 先頭の無音は捨てる
+  chunk.push(b); chunkLen += b.length;
+  silentSec = silent ? silentSec + b.length / SR : 0;
+  const dur = chunkLen / SR;
+  if (dur >= MIN_CHUNK && silentSec >= SILENCE_TAIL) sendChunk(chunkLen);
+  else if (dur >= MAX_CHUNK) sendChunk(quietestPoint());
+}
+
+// 入力のサンプルレートから16kHzへ間引き（区間平均）
+function onFrames(f) {
+  if (!running) return;
+  for (let i = 0; i < f.length; i++) {
+    resampleBuf.push(f[i]);
+    if (resampleBuf.length >= ratio + resamplePos) {
+      const n = Math.floor(ratio + resamplePos);
+      let s = 0; for (let k = 0; k < n; k++) s += resampleBuf[k];
+      block[blockLen++] = s / n;
+      resamplePos = ratio + resamplePos - n;
+      resampleBuf = resampleBuf.slice(n);
+      if (blockLen === BLOCK) { onBlock(block); block = new Float32Array(BLOCK); blockLen = 0; }
+    }
+  }
+}
+
+async function start() {
+  ui.start.disabled = true;
+  try {
+    await ensureWorker();
+  } catch (err) {
+    setState("", "待機中");
+    setMsg("モデルの読み込みに失敗しました：" + err.message, true);
+    ui.start.disabled = false;
+    return;
+  }
+  setState("ready", "準備完了");
+  setMsg("共有するタブを選んでください。「タブの音声も共有する」をオンにしてください。");
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      preferCurrentTab: false, selfBrowserSurface: "exclude", systemAudio: "include",
+    });
+  } catch (err) {
+    setState("ready", "準備完了");
+    setMsg("共有がキャンセルされました。もう一度「開始」を押してください。");
+    ui.start.disabled = false;
+    return;
+  }
+  const tracks = stream.getAudioTracks();
+  if (!tracks.length) {
+    stream.getTracks().forEach((t) => t.stop());
+    setMsg("音声が共有されていません。タブを選ぶときに「タブの音声も共有する」をオンにしてください。", true);
+    ui.start.disabled = false;
+    return;
+  }
+  stream.getTracks().forEach((t) => t.addEventListener("ended", stop));
+
+  ctx = new AudioContext();
+  ratio = ctx.sampleRate / SR;
+  const wurl = URL.createObjectURL(new Blob([WORKLET_SRC], { type: "text/javascript" }));
+  await ctx.audioWorklet.addModule(wurl);
+  const src = ctx.createMediaStreamSource(new MediaStream(tracks));
+  const tap = new AudioWorkletNode(ctx, "tap");
+  tap.port.onmessage = (e) => onFrames(e.data);
+  const mute = ctx.createGain(); mute.gain.value = 0;
+  src.connect(tap).connect(mute).connect(ctx.destination);
+
+  resampleBuf = []; resamplePos = 0; block = new Float32Array(BLOCK); blockLen = 0;
+  chunk = []; chunkLen = 0; silentSec = 0;
+  chunkStart = elapsed;
+  running = true;
+  ui.start.textContent = "■ 停止";
+  ui.start.classList.add("recording");
+  ui.start.disabled = false;
+  ui.model.disabled = ui.lang.disabled = true;
+  setState("rec", "録音中");
+  setMsg("聞き取り中… 動画を再生してください。");
+}
+
+function stop() {
+  if (!running) return;
+  running = false;
+  elapsed = chunkStart + chunkLen / SR;
+  if (chunkLen / SR >= 0.5) sendChunk(chunkLen);
+  if (stream) stream.getTracks().forEach((t) => t.stop());
+  if (ctx) ctx.close();
+  stream = ctx = null;
+  ui.meter.style.width = "0";
+  ui.start.textContent = "● タブを選んで開始";
+  ui.start.classList.remove("recording");
+  ui.model.disabled = ui.lang.disabled = false;
+  setState("", "停止");
+  updateQueue();
+}
+
+ui.start.addEventListener("click", () => (running ? stop() : start()));
+
+$("copyBtn").addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(ui.out.value); setMsg("クリップボードにコピーしました。"); }
+  catch (_) { ui.out.select(); setMsg("選択しました。Ctrl+C でコピーしてください。"); }
+});
+$("saveBtn").addEventListener("click", () => {
+  const d = new Date(), p = (n) => String(n).padStart(2, "0");
+  const name = `文字起こし_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.txt`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([ui.out.value], { type: "text/plain;charset=utf-8" }));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+$("clearBtn").addEventListener("click", () => {
+  if (ui.out.value && !window.confirm("文字起こし結果を消しますか？")) return;
+  ui.out.value = ""; elapsed = 0;
+});
+window.addEventListener("beforeunload", (e) => { if (ui.out.value.trim()) { e.preventDefault(); e.returnValue = ""; } });
+
+detectDevice();
+</script>
+</body>
+</html>
