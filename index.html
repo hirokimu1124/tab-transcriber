@@ -8,14 +8,16 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* 一列のツール画面：設定 → 操作 → 文字起こし欄。録音中だけ赤を使う */
+/* 一列の案内型レイアウト：ステップ表示 → 今やること → 操作 → 結果 → 補足（折りたたみ）。基本色は紫、録音中だけ赤 */
 :root {
-  --bg: #f3f4f6;
+  --bg: #f5f3fa;
   --panel: #ffffff;
-  --fg: #1c2230;
-  --muted: #474f60;
-  --line: #c3c9d4;
-  --accent: #2f4fb5;
+  --fg: #1f1a2e;
+  --muted: #4c4560;
+  --line: #cfc8de;
+  --accent: #6a3fc8;
+  --accent-strong: #52299f;
+  --accent-soft: #efe9fb;
   --accent-fg: #ffffff;
   --rec: #c8322d;
   --ok: #1f7a4d;
@@ -25,14 +27,16 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #12151c; --panel: #1b2029; --fg: #e6e9ef; --muted: #b4bccb; --line: #3f4757;
-    --accent: #7d97ec; --accent-fg: #0d1220; --rec: #ef6a62; --ok: #5cc48f; --warn: #e0a64a;
+    --bg: #15121d; --panel: #1f1a2a; --fg: #ece8f5; --muted: #bdb5cf; --line: #3f3752;
+    --accent: #b49cff; --accent-strong: #cdbcff; --accent-soft: #2c2342; --accent-fg: #1a1230;
+    --rec: #ef6a62; --ok: #5cc48f; --warn: #e0a64a;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #12151c; --panel: #1b2029; --fg: #e6e9ef; --muted: #b4bccb; --line: #3f4757;
-  --accent: #7d97ec; --accent-fg: #0d1220; --rec: #ef6a62; --ok: #5cc48f; --warn: #e0a64a;
+  --bg: #15121d; --panel: #1f1a2a; --fg: #ece8f5; --muted: #bdb5cf; --line: #3f3752;
+  --accent: #b49cff; --accent-strong: #cdbcff; --accent-soft: #2c2342; --accent-fg: #1a1230;
+  --rec: #ef6a62; --ok: #5cc48f; --warn: #e0a64a;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -40,36 +44,82 @@ html, body { margin: 0; }
 body {
   background: var(--bg); color: var(--fg);
   font-family: var(--font-ui); font-size: 16px; line-height: 1.75;
-  padding-inline: 16px; padding-block: 28px 40px;
+  padding-inline: 16px; padding-block: 28px 48px;
 }
 .wrap { max-width: 860px; margin: 0 auto; display: grid; gap: 18px; }
 header { display: grid; gap: 4px; }
-h1 { font-size: 1.85rem; line-height: 1.3; margin: 0; text-wrap: balance; }
-.lead { margin: 0; color: var(--muted); font-size: 1rem; }
+h1 { font-size: 1.85rem; line-height: 1.3; margin: 0; text-wrap: balance; color: var(--accent-strong); }
+.lead { margin: 0; color: var(--muted); }
 
-.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 20px; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 20px; }
+.unsupported { border: 2px solid var(--rec); color: var(--rec); font-weight: 700; }
 
-.settings { display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: end; }
-.field { display: grid; gap: 4px; min-width: 0; }
-.field label, .label { font-size: .9rem; font-weight: 700; color: var(--fg); }
-select {
-  font: inherit; color: var(--fg); background: var(--bg);
-  border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; max-width: 100%; font-size: 1rem;
+/* ステップ表示 */
+.steps { list-style: none; margin: 0 0 18px; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; counter-reset: step; }
+.steps li {
+  display: flex; align-items: center; gap: 10px; min-width: 0;
+  padding: 10px 12px; border-radius: 10px; border: 2px solid var(--line); color: var(--muted); font-weight: 700;
 }
-.check { display: flex; align-items: center; gap: 8px; padding-bottom: 9px; font-size: 1rem; cursor: pointer; }
-.check input { width: 18px; height: 18px; accent-color: var(--accent); }
-.engine { margin-left: auto; font-size: .9rem; color: var(--muted); padding-bottom: 10px; }
+.steps .num {
+  flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center;
+  border: 2px solid currentColor; font-family: var(--font-mono); font-size: .95rem;
+}
+.steps li.current { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-strong); }
+.steps li.current .num { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.steps li.done { color: var(--ok); border-color: var(--line); }
+.steps li.done .num { background: var(--ok); border-color: var(--ok); color: var(--panel); }
+.steps li.recording { border-color: var(--rec); color: var(--rec); background: var(--accent-soft); }
+.steps li.recording .num { background: var(--rec); border-color: var(--rec); color: #fff; }
+.steps .txt { line-height: 1.35; min-width: 0; }
+.steps small { display: block; font-weight: 400; font-size: .8rem; }
 
-.controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+/* 今やること */
+.guide { display: grid; gap: 6px; padding: 16px 18px; border-radius: 10px; background: var(--accent-soft); border-left: 6px solid var(--accent); }
+.guide.error { border-left-color: var(--rec); }
+.guide.error #guideTitle { color: var(--rec); }
+.guide .eyebrow { font-size: .85rem; font-weight: 700; color: var(--accent-strong); }
+#guideTitle { margin: 0; font-size: 1.35rem; line-height: 1.45; text-wrap: pretty; }
+#guideText { margin: 0; }
+
+/* 共有画面の見本 */
+.mock { margin-top: 10px; display: grid; gap: 8px; }
+.mock-cap { font-size: .9rem; color: var(--muted); }
+.mock-box { border: 1px solid var(--line); border-radius: 10px; background: var(--panel); padding: 14px; display: grid; gap: 10px; font-size: .92rem; max-width: 520px; }
+.mock-box .mtitle { font-weight: 700; }
+.mtabs { display: flex; flex-wrap: wrap; gap: 6px; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+.mtabs > span { padding: 2px 10px; border-radius: 6px; color: var(--muted); }
+.hl { outline: 3px solid var(--accent); outline-offset: 2px; border-radius: 6px; position: relative; }
+.badge {
+  display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+  background: var(--accent); color: var(--accent-fg); font-family: var(--font-mono); font-size: .8rem; font-weight: 700;
+  margin-right: 6px; vertical-align: middle;
+}
+.mtabs .hl { color: var(--fg); font-weight: 700; background: var(--accent-soft); }
+.mrow { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 6px; color: var(--muted); }
+.mrow.hl { color: var(--fg); background: var(--accent-soft); font-weight: 500; }
+.mfoot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.toggle { display: inline-flex; align-items: center; gap: 8px; padding: 4px 8px; }
+.switch { width: 34px; height: 18px; border-radius: 9px; background: var(--accent); position: relative; flex: none; }
+.switch::after { content: ""; position: absolute; right: 2px; top: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--accent-fg); }
+.mbtn { padding: 3px 14px; border-radius: 6px; background: var(--accent); color: var(--accent-fg); font-weight: 700; }
+.mock ol { margin: 0; padding-left: 0; list-style: none; display: grid; gap: 4px; }
+
+/* 操作 */
+.controls { display: flex; flex-wrap: wrap; gap: 14px 18px; align-items: center; margin-top: 18px; }
 button {
   font: inherit; cursor: pointer; border-radius: 8px; padding: 8px 16px;
   border: 1px solid var(--line); background: var(--panel); color: var(--fg);
 }
-button:hover:not(:disabled) { border-color: var(--accent); }
-button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+button:hover:not(:disabled) { border-color: var(--accent); color: var(--accent-strong); }
+button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 button:disabled { opacity: .45; cursor: not-allowed; }
-#startBtn { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 700; font-size: 1.1rem; padding: 12px 28px; min-width: 230px; }
-#startBtn.recording { background: var(--rec); border-color: var(--rec); color: #fff; }
+#startBtn {
+  background: var(--accent); color: var(--accent-fg); border: 0; font-weight: 700;
+  font-size: 1.2rem; padding: 14px 32px; min-width: 240px; border-radius: 10px;
+  box-shadow: 0 3px 0 var(--accent-strong);
+}
+#startBtn:hover:not(:disabled) { background: var(--accent-strong); color: var(--accent-fg); }
+#startBtn.recording { background: var(--rec); box-shadow: 0 3px 0 color-mix(in srgb, var(--rec) 70%, #000); color: #fff; }
 
 .status { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; flex: 1; min-width: 220px; }
 .pill {
@@ -85,35 +135,58 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .pill.busy .dot { background: var(--warn); }
 @keyframes blink { 50% { opacity: .25; } }
 @media (prefers-reduced-motion: reduce) { .pill.rec .dot { animation: none; } }
-.msg { font-size: 1rem; color: var(--fg); min-width: 0; flex-basis: 100%; }
-.msg.error { color: var(--rec); font-weight: 700; }
-
 .level { display: inline-flex; align-items: center; gap: 8px; font-size: .9rem; color: var(--muted); }
 .meter { width: 160px; height: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; }
 .meter i { display: block; height: 100%; width: 0; background: var(--ok); transition: width .1s linear; }
-.progress { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; margin-top: 12px; }
+.msg { font-size: .95rem; color: var(--muted); min-width: 0; flex-basis: 100%; }
+.msg.error { color: var(--rec); font-weight: 700; }
+.progress { height: 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; overflow: hidden; margin-top: 14px; }
 .progress i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
 
-.transcript-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-.transcript-head .tools { display: flex; gap: 8px; flex-wrap: wrap; }
-.transcript-head button { padding: 6px 14px; font-size: .95rem; }
-.sizes { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
-.sizes button { border: 0; border-radius: 0; padding: 6px 12px; }
-.sizes button + button { border-left: 1px solid var(--line); }
+/* 結果 */
+.transcript-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.transcript-head h2 { font-size: 1.1rem; margin: 0; }
+.transcript-head h2 span { font-weight: 400; font-size: .9rem; color: var(--muted); }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tools button { padding: 6px 14px; font-size: .95rem; }
+.sizes { display: inline-flex; align-items: center; gap: 0; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.sizes .cap { font-size: .85rem; color: var(--muted); padding: 0 8px 0 10px; }
+.sizes button { border: 0; border-radius: 0; border-left: 1px solid var(--line); padding: 6px 12px; }
 .sizes button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 700; }
 textarea {
-  width: 100%; min-height: 340px; resize: vertical; display: block;
+  width: 100%; min-height: 320px; resize: vertical; display: block;
   font-family: var(--font-ui); font-size: var(--out-size, 1.15rem); line-height: 1.9; color: var(--fg);
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px;
 }
-textarea::placeholder { color: var(--muted); opacity: .6; }
+textarea::placeholder { color: var(--muted); opacity: .65; }
 
-.howto { display: grid; gap: 6px; }
-.howto h2 { font-size: 1.1rem; margin: 0; }
-.howto ol { margin: 0; padding-left: 1.4em; display: grid; gap: 2px; }
-.howto p { margin: 0; color: var(--muted); font-size: .95rem; }
-kbd { font-family: var(--font-mono); font-size: .85em; border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; background: var(--bg); }
-.unsupported { border-color: var(--rec); color: var(--rec); }
+/* 折りたたみ */
+details { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; }
+summary { cursor: pointer; padding: 16px 20px; font-weight: 700; font-size: 1.05rem; list-style: none; display: flex; align-items: center; gap: 10px; }
+summary::-webkit-details-marker { display: none; }
+summary::before { content: "▶"; font-size: .75rem; color: var(--accent); transition: transform .15s; }
+details[open] summary::before { transform: rotate(90deg); }
+summary small { font-weight: 400; color: var(--muted); font-size: .9rem; }
+.dbody { padding: 0 20px 20px; display: grid; gap: 16px; }
+.setting { display: grid; gap: 4px; }
+.setting label { font-weight: 700; }
+.setting .hint { font-size: .9rem; color: var(--muted); margin: 0; }
+select {
+  font: inherit; font-size: 1rem; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; max-width: 100%; justify-self: start;
+}
+.check { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; }
+.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.engine { font-size: .9rem; color: var(--muted); }
+.faq { display: grid; gap: 14px; }
+.faq h3 { margin: 0 0 2px; font-size: 1rem; }
+.faq p { margin: 0; color: var(--muted); }
+kbd { font-family: var(--font-ui); font-size: .9em; border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; background: var(--bg); color: var(--fg); white-space: nowrap; }
+
+@media (max-width: 560px) {
+  .steps { grid-template-columns: 1fr; }
+  #startBtn { width: 100%; }
+}
 </style>
 </head>
 <body>
@@ -124,37 +197,48 @@ kbd { font-family: var(--font-mono); font-size: .85em; border: 1px solid var(--l
   </header>
 
   <div id="unsupported" class="panel unsupported" hidden>
-    このブラウザではタブの音声を取り込めません。Google Chrome または Microsoft Edge（パソコン版）で開いてください。
+    このブラウザではタブの音声を取り込めません。パソコン版の Google Chrome または Microsoft Edge でこのページを開いてください。
   </div>
 
-  <section class="panel settings" aria-label="設定">
-    <div class="field">
-      <label for="model">モデル</label>
-      <select id="model">
-        <option value="onnx-community/whisper-base">base（軽い・約150MB）</option>
-        <option value="onnx-community/whisper-small" selected>small（標準・約300MB）</option>
-        <option value="onnx-community/whisper-large-v3-turbo">large-v3-turbo（高精度・約1GB）</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="lang">言語</label>
-      <select id="lang">
-        <option value="japanese" selected>日本語</option>
-        <option value="english">英語</option>
-        <option value="">自動判定</option>
-      </select>
-    </div>
-    <label class="check"><input type="checkbox" id="showTime" checked> 時刻を付ける</label>
-    <span class="engine" id="engine">処理方式を確認中…</span>
-  </section>
+  <section class="panel" aria-label="操作の案内">
+    <ol class="steps" aria-label="進み具合">
+      <li id="step1"><span class="num">1</span><span class="txt">準備<small>文字起こしの準備</small></span></li>
+      <li id="step2"><span class="num">2</span><span class="txt">タブを選ぶ<small>動画のタブを共有</small></span></li>
+      <li id="step3"><span class="num">3</span><span class="txt">文字起こし<small>動画を再生する</small></span></li>
+    </ol>
 
-  <section class="panel" aria-label="操作">
+    <div class="guide" id="guide" aria-live="polite">
+      <span class="eyebrow">いまやること</span>
+      <p id="guideTitle">文字にしたい動画を別のタブで開いてから、下の「開始する」を押してください</p>
+      <p id="guideText">押すと文字起こしの準備が始まります。初めて使うときだけ、約300MBのダウンロードで数分かかります。</p>
+
+      <div class="mock" id="mock">
+        <span class="mock-cap">このあと、次のような画面が出ます。番号の順に操作してください（見た目はブラウザによって少し違います）。</span>
+        <div class="mock-box" aria-hidden="true">
+          <span class="mtitle">共有する内容を選択</span>
+          <div class="mtabs"><span class="hl"><span class="badge">1</span>Chrome タブ</span><span>ウィンドウ</span><span>画面全体</span></div>
+          <div class="mrow hl"><span class="badge">2</span>▶ YouTube（文字にしたい動画のタブ）</div>
+          <div class="mrow">このページ（タブ音声 文字起こし）</div>
+          <div class="mfoot">
+            <span class="toggle hl"><span class="badge">3</span><span class="switch"></span>タブの音声も共有する</span>
+            <span><span class="badge">4</span><span class="mbtn">共有</span></span>
+          </div>
+        </div>
+        <ol>
+          <li><span class="badge">1</span>上の <kbd>Chrome タブ</kbd> を選ぶ（Edgeでは <kbd>タブ</kbd>）</li>
+          <li><span class="badge">2</span>一覧から、文字にしたい動画のタブをクリック</li>
+          <li><span class="badge">3</span><kbd>タブの音声も共有する</kbd> がオンになっているか確かめる</li>
+          <li><span class="badge">4</span><kbd>共有</kbd> を押す</li>
+        </ol>
+      </div>
+    </div>
+
     <div class="controls">
-      <button id="startBtn" type="button">● タブを選んで開始</button>
+      <button id="startBtn" type="button">開始する</button>
       <div class="status">
         <span class="pill" id="statePill"><span class="dot"></span><span id="stateText">待機中</span></span>
         <span class="level">音量 <span class="meter" role="img" aria-label="入力音量"><i id="meter"></i></span></span>
-        <span class="msg" id="msg">「開始」を押して、文字にしたい動画のタブを選んでください。</span>
+        <span class="msg" id="msg">設定：<span id="settingSummary">small・日本語</span>（変えるときは下の「設定」を開きます）</span>
       </div>
     </div>
     <div class="progress" id="progressWrap" hidden><i id="progress"></i></div>
@@ -162,34 +246,63 @@ kbd { font-family: var(--font-mono); font-size: .85em; border: 1px solid var(--l
 
   <section class="panel" aria-label="文字起こし結果">
     <div class="transcript-head">
-      <span class="label">文字起こし結果 <span style="font-weight:400;color:var(--muted)">（直接編集できます）</span></span>
+      <h2>文字起こし結果 <span>（直接書き直せます）</span></h2>
       <div class="tools">
-        <span class="sizes" role="group" aria-label="文字サイズ">
+        <span class="sizes" role="group" aria-label="文字の大きさ">
+          <span class="cap">文字</span>
           <button type="button" data-size="1rem" aria-pressed="false">小</button>
           <button type="button" data-size="1.15rem" aria-pressed="true">中</button>
           <button type="button" data-size="1.4rem" aria-pressed="false">大</button>
         </span>
-        <button type="button" id="copyBtn">コピー</button>
-        <button type="button" id="saveBtn">.txtで保存</button>
-        <button type="button" id="clearBtn">クリア</button>
+        <button type="button" id="copyBtn" disabled>コピー</button>
+        <button type="button" id="saveBtn" disabled>ファイルに保存</button>
+        <button type="button" id="clearBtn" disabled>すべて消す</button>
       </div>
     </div>
-    <textarea id="out" spellcheck="false" placeholder="ここに文字起こし結果が表示されます。表示例：
+    <textarea id="out" spellcheck="false" aria-label="文字起こし結果" placeholder="ここに文字起こし結果が表示されます。表示例：
 [00:02] こんにちは。今日はパソコンの音声を文字起こしするテストを行っています。
 [00:07] うまく認識できるでしょうか。"></textarea>
+    <p class="msg" id="clearConfirm" hidden></p>
   </section>
 
-  <section class="panel howto">
-    <h2>使い方</h2>
-    <ol>
-      <li>文字にしたい動画（YouTubeなど）を、別のタブで開いておきます。</li>
-      <li>「タブを選んで開始」を押します。初回はモデルのダウンロードに数分かかります。</li>
-      <li>共有画面で <kbd>Chrome タブ</kbd>（Edgeは <kbd>タブ</kbd>）を選び、動画のタブをクリックします。</li>
-      <li><kbd>タブの音声も共有する</kbd> がオンになっていることを確かめて、<kbd>共有</kbd> を押します。</li>
-      <li>動画を再生すると、区切りごとに文字が追加されます。終わったら「停止」を押します。</li>
-    </ol>
-    <p>モデルは2回目以降ブラウザに保存されたものを使うので、すぐ始まります。パソコンの性能が低い場合は base を選んでください。</p>
-  </section>
+  <details id="settingsBox">
+    <summary>設定 <small>そのままでも使えます</small></summary>
+    <div class="dbody">
+      <div class="setting">
+        <label for="model">文字起こしの精度</label>
+        <select id="model">
+          <option value="onnx-community/whisper-base">軽い（base・約150MB）</option>
+          <option value="onnx-community/whisper-small" selected>標準（small・約300MB）おすすめ</option>
+          <option value="onnx-community/whisper-large-v3-turbo">高精度（large-v3-turbo・約1GB）</option>
+        </select>
+        <p class="hint">精度を上げるほど、文字が出るまで時間がかかります。文字の表示が遅れるときは「軽い」を選んでください。</p>
+      </div>
+      <div class="setting">
+        <label for="lang">動画の言語</label>
+        <select id="lang">
+          <option value="japanese" selected>日本語</option>
+          <option value="english">英語</option>
+          <option value="">自動で判定する</option>
+        </select>
+      </div>
+      <div class="setting">
+        <label class="check"><input type="checkbox" id="showTime" checked> 各行に時刻を付ける</label>
+        <p class="hint">開始してからの経過時間を [分:秒] の形で行の先頭に付けます。</p>
+      </div>
+      <p class="engine" id="engine">処理方式を確認中…</p>
+    </div>
+  </details>
+
+  <details>
+    <summary>うまくいかないとき</summary>
+    <div class="dbody faq">
+      <div><h3>文字が何も出てこない</h3><p>タブを選ぶ画面で <kbd>タブの音声も共有する</kbd> がオフだった可能性があります。「停止」を押してから、もう一度「開始する」を押し、オンにして共有してください。動画が一時停止していないか、ミュートになっていないかも確かめてください。</p></div>
+      <div><h3>文字が出るまでに時間がかかる</h3><p>パソコンの処理が追いついていません。「設定」で精度を「軽い」に変えてください。</p></div>
+      <div><h3>最初の準備が終わらない</h3><p>初回は約150MB〜1GBのダウンロードがあります。下のバーが進んでいれば、そのまま待ってください。2回目からはすぐ始まります。</p></div>
+      <div><h3>共有の画面が出ない・選べない</h3><p>パソコン版の Chrome か Edge で開いてください。スマートフォンや Safari、Firefox では使えません。</p></div>
+      <div><h3>途中で止まった</h3><p>共有したタブを閉じると、文字起こしも止まります。もう一度「開始する」を押せば、結果の続きに追加されます。</p></div>
+    </div>
+  </details>
 </div>
 
 <script>
@@ -242,24 +355,44 @@ const SILENCE_RMS = 0.004;       // これ未満を無音とみなす
 const SILENCE_TAIL = 0.6;        // 文末とみなす無音の秒数
 const MIN_CHUNK = 2.0;           // これより短い区間は待つ
 const MAX_CHUNK = 12.0;          // これを超えたら強制的に区切る
+const NO_SOUND_SEC = 15;         // 録音開始後これだけ無音なら案内を出す
 
 const $ = (id) => document.getElementById(id);
 const ui = {
   start: $("startBtn"), model: $("model"), lang: $("lang"), showTime: $("showTime"),
   engine: $("engine"), pill: $("statePill"), stateText: $("stateText"), msg: $("msg"),
   meter: $("meter"), progWrap: $("progressWrap"), prog: $("progress"), out: $("out"),
+  guide: $("guide"), guideTitle: $("guideTitle"), guideText: $("guideText"), mock: $("mock"),
+  copy: $("copyBtn"), save: $("saveBtn"), clear: $("clearBtn"), summary: $("settingSummary"),
 };
 
 let device = "wasm";
 let worker = null, loadedKey = null;
 let running = false, stream = null, ctx = null;
-let pending = 0;
+let pending = 0, heardSound = false, recStartedAt = 0;
 
 // 録音状態
 let resampleBuf = [], resamplePos = 0, ratio = 1;
 let block = new Float32Array(BLOCK), blockLen = 0;
 let chunk = [], chunkLen = 0, chunkStart = 0, silentSec = 0, elapsed = 0;
 
+// ---- 画面の状態 ----
+// step: idle | load | choose | rec | done
+function setStep(step) {
+  const order = { idle: 1, load: 1, choose: 2, rec: 3, done: 4 }[step];
+  ["step1", "step2", "step3"].forEach((id, i) => {
+    const el = $(id), n = i + 1;
+    el.className = n < order || step === "done" ? "done" : n === order ? (step === "rec" ? "recording" : "current") : "";
+    if (n === order) el.setAttribute("aria-current", "step"); else el.removeAttribute("aria-current");
+  });
+  ui.mock.hidden = !(step === "idle" || step === "choose");
+}
+function setGuide(title, text, isError) {
+  ui.guideTitle.textContent = title;
+  ui.guideText.textContent = text || "";
+  ui.guideText.hidden = !text;
+  ui.guide.classList.toggle("error", !!isError);
+}
 function setState(kind, text) {
   ui.pill.className = "pill" + (kind ? " " + kind : "");
   ui.stateText.textContent = text;
@@ -268,16 +401,36 @@ function setMsg(text, isError) {
   ui.msg.textContent = text;
   ui.msg.classList.toggle("error", !!isError);
 }
+function modelLabel() { return ui.model.selectedOptions[0].textContent.replace(/（.*$/, ""); }
+function modelSize() { return (ui.model.selectedOptions[0].textContent.match(/約[0-9.]+[MG]B/) || ["数百MB"])[0]; }
+function idleSettingMsg() {
+  ui.msg.textContent = "";
+  ui.msg.classList.remove("error");
+  ui.msg.append("設定：" + modelLabel() + "・" + ui.lang.selectedOptions[0].textContent + "（変えるときは下の「設定」を開きます）");
+}
+function updateButtons() {
+  const has = ui.out.value.trim().length > 0;
+  ui.copy.disabled = ui.save.disabled = ui.clear.disabled = !has;
+}
 function rms(a) { let s = 0; for (let i = 0; i < a.length; i++) s += a[i] * a[i]; return a.length ? Math.sqrt(s / a.length) : 0; }
 function fmt(sec) { const m = Math.floor(sec / 60), s = Math.floor(sec % 60); return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0"); }
+
+function idleGuide() {
+  setStep("idle");
+  setGuide("文字にしたい動画を別のタブで開いてから、下の「開始する」を押してください",
+    `押すと文字起こしの準備が始まります。初めて使うときだけ、${modelSize()}のダウンロードで数分かかります。`);
+}
 
 async function detectDevice() {
   try {
     if (navigator.gpu && await navigator.gpu.requestAdapter()) device = "webgpu";
   } catch (_) {}
-  ui.engine.textContent = device === "webgpu" ? "処理方式：GPU（WebGPU）" : "処理方式：CPU";
+  ui.engine.textContent = device === "webgpu"
+    ? "このパソコンでは GPU を使って処理します（速め）。"
+    : "このパソコンでは CPU で処理します。遅いと感じたら精度を「軽い」にしてください。";
   if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia || /Firefox|^((?!Chrome|Edg).)*Safari/.test(navigator.userAgent)) {
     $("unsupported").hidden = false;
+    ui.start.disabled = true;
   }
 }
 
@@ -299,7 +452,7 @@ function ensureWorker() {
           let l = 0, t = 0; for (const k in files) { l += files[k][0]; t += files[k][1]; }
           ui.progWrap.hidden = false;
           ui.prog.style.width = (100 * l / t).toFixed(1) + "%";
-          setMsg(`モデルをダウンロード中… ${(l / 1e6).toFixed(0)} / ${(t / 1e6).toFixed(0)} MB`);
+          setMsg(`ダウンロード中… ${(l / 1e6).toFixed(0)} / ${(t / 1e6).toFixed(0)} MB`);
         }
       } else if (m.type === "ready") {
         loadedKey = key; ui.progWrap.hidden = true;
@@ -311,7 +464,7 @@ function ensureWorker() {
       }
     };
     setState("busy", "準備中");
-    setMsg("モデルを読み込んでいます…");
+    setMsg("文字起こしの準備をしています…");
     worker.postMessage({ type: "load", model: ui.model.value, device, language: ui.lang.value });
   });
 }
@@ -325,15 +478,16 @@ function onWorkerMessage(e) {
     const atBottom = ui.out.scrollTop + ui.out.clientHeight >= ui.out.scrollHeight - 30;
     ui.out.value += (ui.out.value && !ui.out.value.endsWith("\n") ? "\n" : "") + line + "\n";
     if (atBottom) ui.out.scrollTop = ui.out.scrollHeight;
+    updateButtons();
   }
-  if (m.error) setMsg("一部の区間で文字起こしに失敗しました：" + m.error, true);
-  updateQueue();
+  if (m.error) setMsg("一部の区間を文字にできませんでした。続けて聞き取っています。", true);
+  else updateQueue();
 }
 
 function updateQueue() {
-  if (running) setMsg(pending > 1 ? `処理待ち ${pending - 1} 件（処理が追いついていません）` : "聞き取り中…");
-  else if (pending > 0) setMsg(`残り ${pending} 件を処理中…`);
-  else if (!ui.start.disabled) setMsg("停止しました。結果はコピーまたは保存できます。");
+  if (running) setMsg(pending > 1 ? `文字にする順番待ちが ${pending - 1} 件あります。遅れが続くときは「設定」で精度を「軽い」にしてください。` : "聞き取り中です。");
+  else if (pending > 0) setMsg(`残り ${pending} 件を文字にしています…`);
+  else if (ui.stateText.textContent === "停止") setMsg("すべて文字にしました。");
 }
 
 function sendChunk(len) {
@@ -369,6 +523,13 @@ function onBlock(b) {
   const r = rms(b);
   ui.meter.style.width = Math.min(100, r * 600).toFixed(0) + "%";
   const silent = r < SILENCE_RMS;
+  if (!silent && !heardSound) {
+    heardSound = true;
+    setGuide("聞き取っています", "動画の音声が届いています。区切りごとに、下の「文字起こし結果」に文字が追加されます。終わったら「停止する」を押してください。");
+  } else if (!heardSound && performance.now() - recStartedAt > NO_SOUND_SEC * 1000) {
+    recStartedAt = Infinity;
+    setGuide("音声が届いていません", "動画が再生中か、ミュートになっていないか確かめてください。それでも音量バーが動かないときは「停止する」を押し、もう一度始めて「タブの音声も共有する」をオンにしてください。", true);
+  }
   if (chunkLen === 0 && silent) { chunkStart += b.length / SR; return; }   // 先頭の無音は捨てる
   chunk.push(b); chunkLen += b.length;
   silentSec = silent ? silentSec + b.length / SR : 0;
@@ -395,16 +556,24 @@ function onFrames(f) {
 
 async function start() {
   ui.start.disabled = true;
+  ui.model.disabled = ui.lang.disabled = true;
+  setStep("load");
+  setGuide("準備しています。このままお待ちください",
+    loadedKey ? "すぐに終わります。" : `初めてのときは${modelSize()}をダウンロードするため、数分かかることがあります。2回目からはすぐ始まります。`);
   try {
     await ensureWorker();
   } catch (err) {
     setState("", "待機中");
-    setMsg("モデルの読み込みに失敗しました：" + err.message, true);
+    setStep("idle");
+    setGuide("準備に失敗しました", "インターネットにつながっているか確かめて、もう一度「開始する」を押してください。（詳細：" + err.message + "）", true);
     ui.start.disabled = false;
+    ui.model.disabled = ui.lang.disabled = false;
     return;
   }
   setState("ready", "準備完了");
-  setMsg("共有するタブを選んでください。「タブの音声も共有する」をオンにしてください。");
+  setStep("choose");
+  setGuide("共有する画面が開きます。番号の順に操作してください", "ポイントは ③「タブの音声も共有する」をオンにすることです。");
+  setMsg("共有するタブを選んでください。");
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({
       video: true,
@@ -412,16 +581,21 @@ async function start() {
       preferCurrentTab: false, selfBrowserSurface: "exclude", systemAudio: "include",
     });
   } catch (err) {
-    setState("ready", "準備完了");
-    setMsg("共有がキャンセルされました。もう一度「開始」を押してください。");
+    setStep("idle");
+    setGuide("共有がキャンセルされました", "もう一度「開始する」を押して、動画のタブを選んでください。", true);
+    idleSettingMsg();
     ui.start.disabled = false;
+    ui.model.disabled = ui.lang.disabled = false;
     return;
   }
   const tracks = stream.getAudioTracks();
   if (!tracks.length) {
     stream.getTracks().forEach((t) => t.stop());
-    setMsg("音声が共有されていません。タブを選ぶときに「タブの音声も共有する」をオンにしてください。", true);
+    setStep("idle");
+    setGuide("音声が共有されませんでした", "「ウィンドウ」や「画面全体」ではなく ①「Chrome タブ」から動画のタブを選び、③「タブの音声も共有する」をオンにしてから共有してください。", true);
+    idleSettingMsg();
     ui.start.disabled = false;
+    ui.model.disabled = ui.lang.disabled = false;
     return;
   }
   stream.getTracks().forEach((t) => t.addEventListener("ended", stop));
@@ -439,13 +613,15 @@ async function start() {
   resampleBuf = []; resamplePos = 0; block = new Float32Array(BLOCK); blockLen = 0;
   chunk = []; chunkLen = 0; silentSec = 0;
   chunkStart = elapsed;
+  heardSound = false; recStartedAt = performance.now();
   running = true;
-  ui.start.textContent = "■ 停止";
+  ui.start.textContent = "停止する";
   ui.start.classList.add("recording");
   ui.start.disabled = false;
-  ui.model.disabled = ui.lang.disabled = true;
   setState("rec", "録音中");
-  setMsg("聞き取り中… 動画を再生してください。");
+  setStep("rec");
+  setGuide("動画を再生してください", "共有したタブで動画を再生すると、下の「文字起こし結果」に文字が追加されていきます。このページは閉じずにそのままにしてください。");
+  setMsg("聞き取り中です。");
 }
 
 function stop() {
@@ -457,30 +633,46 @@ function stop() {
   if (ctx) ctx.close();
   stream = ctx = null;
   ui.meter.style.width = "0";
-  ui.start.textContent = "● タブを選んで開始";
+  ui.start.textContent = "開始する";
   ui.start.classList.remove("recording");
   ui.model.disabled = ui.lang.disabled = false;
   setState("", "停止");
+  setStep("done");
+  setGuide("停止しました", "結果は「コピー」や「ファイルに保存」で持ち出せます。続きを文字にするときは、もう一度「開始する」を押してください（結果の続きに追加されます）。");
   updateQueue();
 }
 
 ui.start.addEventListener("click", () => (running ? stop() : start()));
+ui.out.addEventListener("input", updateButtons);
+[ui.model, ui.lang].forEach((el) => el.addEventListener("change", () => {
+  if (!running) { idleSettingMsg(); if (ui.stateText.textContent === "待機中") idleGuide(); }
+}));
 
-$("copyBtn").addEventListener("click", async () => {
-  try { await navigator.clipboard.writeText(ui.out.value); setMsg("クリップボードにコピーしました。"); }
-  catch (_) { ui.out.select(); setMsg("選択しました。Ctrl+C でコピーしてください。"); }
+ui.copy.addEventListener("click", async () => {
+  try { await navigator.clipboard.writeText(ui.out.value); setMsg("コピーしました。メモ帳などに貼り付けられます。"); }
+  catch (_) { ui.out.select(); setMsg("文字を選択しました。Ctrl + C でコピーしてください。"); }
 });
-$("saveBtn").addEventListener("click", () => {
+ui.save.addEventListener("click", () => {
   const d = new Date(), p = (n) => String(n).padStart(2, "0");
   const name = `文字起こし_${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}.txt`;
   const a = document.createElement("a");
   a.href = URL.createObjectURL(new Blob([ui.out.value], { type: "text/plain;charset=utf-8" }));
   a.download = name; a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  setMsg(`「${name}」としてダウンロードフォルダに保存しました。`);
 });
-$("clearBtn").addEventListener("click", () => {
-  if (ui.out.value && !window.confirm("文字起こし結果を消しますか？")) return;
-  ui.out.value = ""; elapsed = 0;
+// 誤操作防止：2回押したら消す
+let clearArmed = null;
+ui.clear.addEventListener("click", () => {
+  if (!clearArmed) {
+    ui.clear.textContent = "もう一度押すと消えます";
+    clearArmed = setTimeout(() => { ui.clear.textContent = "すべて消す"; clearArmed = null; }, 4000);
+    return;
+  }
+  clearTimeout(clearArmed); clearArmed = null;
+  ui.clear.textContent = "すべて消す";
+  ui.out.value = ""; elapsed = 0; updateButtons();
+  setMsg("結果を消しました。");
 });
 window.addEventListener("beforeunload", (e) => { if (ui.out.value.trim()) { e.preventDefault(); e.returnValue = ""; } });
 
@@ -493,6 +685,8 @@ function setSize(size) {
 document.querySelectorAll(".sizes button").forEach((b) => b.addEventListener("click", () => setSize(b.dataset.size)));
 try { const s = localStorage.getItem("outSize"); if (s) setSize(s); } catch (_) {}
 
+idleGuide();
+idleSettingMsg();
 detectDevice();
 </script>
 </body>
